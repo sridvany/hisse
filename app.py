@@ -298,16 +298,14 @@ if run or "last_ticker" in st.session_state:
             marker_color="rgba(125, 211, 252, 0.35)",
         ), secondary_y=True)
 
-        # Daily Range trend çizgisi (lineer regresyon)
+        # Daily Range trend çizgisi (20 günlük hareketli ortalama)
         dr = metrics["Daily Range (%)"].dropna()
-        x_num = np.arange(len(dr))
-        z = np.polyfit(x_num, dr.values, 1)
-        trend = np.poly1d(z)(x_num)
+        rolling_trend = dr.rolling(window=20, min_periods=1).mean()
         fig.add_trace(go.Scatter(
             x=dr.index,
-            y=trend,
-            name="Range Trend",
-            line=dict(color="#f59e0b", width=1.5, dash="dot"),
+            y=rolling_trend,
+            name="Range MA20",
+            line=dict(color="#f59e0b", width=1.8),
         ), secondary_y=True)
 
         fig.update_layout(
