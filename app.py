@@ -106,6 +106,7 @@ def fetch_oldest_date(ticker: str) -> str:
         return "—"
 
 
+def compute_metrics(df: pd.DataFrame) -> pd.DataFrame:
     """Günlük kapanış, güniçi değişim, Amihud, Daily Range hesapla."""
     out = pd.DataFrame(index=df.index)
     out["Kapanış (₺)"]     = df["Close"].round(2)
