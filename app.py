@@ -169,10 +169,34 @@ with st.sidebar:
 
     st.markdown("---")
     secondary_metric = st.radio(
-        "📉 Grafik İkinci Eksen",
-        options=["Daily Range (%)", "Amihud (×10⁶)", "Hacim"],
+        "📉 Likidite Boyutları",
+        options=["Daily Range (%) — Anındalık", "Amihud (×10⁶) — Genişlik", "Hacim — Derinlik"],
         index=0,
     )
+    # Radio değerinden asıl sütun adını çıkar
+    secondary_metric = secondary_metric.split(" — ")[0]
+
+    with st.expander("📖 Boyut Tanımları"):
+        st.markdown("""
+**📊 Daily Range — Anındalık**
+Günlük yüksek ve düşük fiyat arasındaki mutlak fark.
+Ani sipariş akışını absorbe etme kapasitesini ölçer.
+Spike'lar piyasanın yeni emirleri daha az likit koşullarda karşıladığına işaret eder.
+
+---
+
+**📊 Amihud (2002) — Genişlik**
+Günlük mutlak getirinin TL hacime oranı (×10⁶).
+Bir işlem için katlanılan fiyat tavizi maliyetini temsil eder.
+Yüksek = büyük fiyat etkisi = az likit.
+
+---
+
+**📊 Hacim — Derinlik**
+Günlük toplam işlem adedi (log₁₀ normalize).
+Düşük hacim zayıf likidite koşullarına işaret eder.
+Yüksek = derin piyasa = büyük emirler fiyatı az etkiler.
+        """)
 
     st.markdown("---")
     run = st.button("⚡ Veriyi Çek", use_container_width=True, type="primary")
