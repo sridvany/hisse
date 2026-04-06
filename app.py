@@ -378,7 +378,7 @@ if run or "last_ticker" in st.session_state:
             range=[0, 6] if sec_col == "Daily Range (%)" else None,
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True})
         st.markdown("---")
 
         # HTML tablo oluştur
