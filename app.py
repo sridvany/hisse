@@ -201,6 +201,13 @@ with st.sidebar:
     n_rows = st.slider("Gösterilecek Satır Sayısı", 10, 500, 60, 10)
 
     st.markdown("---")
+    secondary_metric = st.radio(
+        "📉 Grafik İkinci Eksen",
+        options=["Daily Range (%)", "Amihud (×10⁶)"],
+        index=0,
+    )
+
+    st.markdown("---")
     run = st.button("⚡ Veriyi Çek", use_container_width=True, type="primary")
     st.markdown("---")
     auto_refresh = st.checkbox("🔄 Otomatik Yenile (55s)", value=False)
@@ -223,6 +230,7 @@ if run or "last_ticker" in st.session_state:
     _ticker  = st.session_state.get("last_ticker", ticker)
     _start   = st.session_state.get("last_start", str(start_date))
     _company = st.session_state.get("last_company", selected_company)
+    _secondary = secondary_metric
 
     with st.spinner(f"{_company} verisi çekiliyor..."):
         raw = fetch_data(_ticker, _start)
@@ -291,24 +299,30 @@ if run or "last_ticker" in st.session_state:
             line=dict(color="#22c55e", width=1.5),
         ), secondary_y=False)
 
-        # Daily Range — sadece trend çizgisi
-        dr = metrics["Daily Range (%)"].dropna()
-        window = min(30, len(dr))
+        # İkinci eksen verisi
+        sec_col  = _secondary
+        sec_data = metrics[sec_col].dropna()
+        use_log  = (sec_col == "Amihud (×10⁶)")
+
+        # Rolling trend (30 günlük pencere)
+        window = min(30, len(sec_data))
         trend_vals = []
-        for i in range(len(dr)):
+        for i in range(len(sec_data)):
             start_i = max(0, i - window + 1)
-            segment = dr.iloc[start_i:i+1]
-            x_seg = np.arange(len(segment))
+            segment = sec_data.iloc[start_i:i+1]
+            x_seg   = np.arange(len(segment))
             if len(segment) >= 2:
-                z = np.polyfit(x_seg, segment.values, 1)
-                trend_vals.append(np.poly1d(z)(len(segment) - 1))
+                fit_y = np.log1p(segment.values) if use_log else segment.values
+                z = np.polyfit(x_seg, fit_y, 1)
+                val = np.poly1d(z)(len(segment) - 1)
+                trend_vals.append(np.expm1(val) if use_log else val)
             else:
                 trend_vals.append(segment.iloc[-1])
 
         fig.add_trace(go.Scatter(
-            x=dr.index,
+            x=sec_data.index,
             y=trend_vals,
-            name="Range Trend",
+            name=f"{sec_col} Trend",
             line=dict(color="#f59e0b", width=1.8),
         ), secondary_y=True)
 
@@ -347,12 +361,13 @@ if run or "last_ticker" in st.session_state:
             secondary_y=False,
         )
         fig.update_yaxes(
-            title_text="Daily Range (%)",
+            title_text=sec_col,
             title_font=dict(color="#7dd3fc"),
             tickfont=dict(color="#7dd3fc"),
             showgrid=False,
             secondary_y=True,
-            range=[0, 6],
+            type="log" if use_log else "linear",
+            range=[0, 6] if not use_log else None,
         )
 
         st.plotly_chart(fig, use_container_width=True)
