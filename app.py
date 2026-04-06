@@ -153,7 +153,11 @@ def compute_metrics(df: pd.DataFrame) -> pd.DataFrame:
     daily_return = df["Close"].pct_change().abs()
     out["Amihud (×10⁶)"] = (daily_return / tl_volume * 1e6).replace([np.inf, -np.inf], np.nan)
 
-    return out.round(4)
+    # Amihud hariç diğerlerini yuvarla, Amihud tam hassasiyette kalsın
+    amihud = out["Amihud (×10⁶)"].copy()
+    out = out.round(4)
+    out["Amihud (×10⁶)"] = amihud
+    return out
 
 def color_val(val, col):
     if pd.isna(val):
