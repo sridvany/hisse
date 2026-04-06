@@ -441,6 +441,105 @@ if run or "last_ticker" in st.session_state:
         """
         st.markdown(table_html, unsafe_allow_html=True)
 
+        # ── İlişki Analizi ───────────────────────────────────────────────────
+        st.markdown("---")
+        st.markdown("### 🔗 Close · Daily Range · Amihud İlişki Analizi")
+
+        # Analiz için log Amihud kullan
+        ana = pd.DataFrame({
+            "Close":       metrics["Kapanış (₺)"],
+            "Daily Range": metrics["Daily Range (%)"],
+            "Amihud (log)": metrics["Amihud (×10⁶)"].apply(
+                lambda x: abs(np.log10(x)) if pd.notna(x) and x > 0 else np.nan)
+        }).dropna()
+
+        from scipy.stats import spearmanr
+
+        # 1. Spearman Korelasyon Heatmap
+        cols3 = ["Close", "Daily Range", "Amihud (log)"]
+        corr_matrix = np.zeros((3, 3))
+        for i, c1 in enumerate(cols3):
+            for j, c2 in enumerate(cols3):
+                r, _ = spearmanr(ana[c1], ana[c2])
+                corr_matrix[i][j] = round(r, 3)
+
+        heat_fig = go.Figure(go.Heatmap(
+            z=corr_matrix,
+            x=cols3, y=cols3,
+            colorscale=[[0, "#ef4444"], [0.5, "#1e2235"], [1, "#22c55e"]],
+            zmin=-1, zmax=1,
+            text=corr_matrix.round(2),
+            texttemplate="%{text}",
+            textfont=dict(size=14, family="IBM Plex Mono"),
+            showscale=True,
+        ))
+        heat_fig.update_layout(
+            paper_bgcolor="#0f1117", plot_bgcolor="#0f1117",
+            font=dict(family="IBM Plex Mono", color="#94a3b8", size=11),
+            margin=dict(l=10, r=10, t=30, b=10),
+            height=280,
+            title=dict(text="Spearman Korelasyon Matrisi", font=dict(color="#94a3b8", size=12)),
+        )
+        st.plotly_chart(heat_fig, use_container_width=True)
+
+        # 3. Rolling Spearman Korelasyon (60 günlük)
+        st.markdown("**Rolling Spearman Korelasyon (60 gün)**")
+        roll_window = 60
+        pairs = [
+            ("Close", "Daily Range", "#7dd3fc"),
+            ("Close", "Amihud (log)", "#f59e0b"),
+            ("Daily Range", "Amihud (log)", "#a78bfa"),
+        ]
+        roll_fig = go.Figure()
+        for c1, c2, color in pairs:
+            roll_corr = [
+                spearmanr(ana[c1].iloc[max(0,i-roll_window):i+1],
+                          ana[c2].iloc[max(0,i-roll_window):i+1])[0]
+                if i >= 10 else np.nan
+                for i in range(len(ana))
+            ]
+            roll_fig.add_trace(go.Scatter(
+                x=ana.index, y=roll_corr,
+                name=f"{c1} × {c2}",
+                line=dict(color=color, width=1.5),
+            ))
+        roll_fig.add_hline(y=0, line=dict(color="#4b5563", dash="dot", width=1))
+        roll_fig.update_layout(
+            paper_bgcolor="#0f1117", plot_bgcolor="#0f1117",
+            font=dict(family="IBM Plex Mono", color="#94a3b8", size=11),
+            legend=dict(orientation="h", y=1.1, bgcolor="rgba(0,0,0,0)"),
+            margin=dict(l=10, r=10, t=30, b=10),
+            height=300,
+            yaxis=dict(range=[-1, 1], showgrid=True, gridcolor="#1e2235"),
+            xaxis=dict(showgrid=False),
+        )
+        st.plotly_chart(roll_fig, use_container_width=True, config={"scrollZoom": True, "dragmode": "pan"})
+
+        # 4. Rejim Analizi — Daily Range medyanına göre yüksek/düşük volatilite
+        st.markdown("**Volatilite Rejimi (Daily Range medyanı bazlı)**")
+        median_dr = ana["Daily Range"].median()
+        ana["Rejim"] = ana["Daily Range"].apply(lambda x: "Yüksek Vol." if x >= median_dr else "Düşük Vol.")
+
+        reg_fig = go.Figure()
+        for rejim, color, dash in [("Yüksek Vol.", "#ef4444", "solid"), ("Düşük Vol.", "#22c55e", "solid")]:
+            mask = ana["Rejim"] == rejim
+            reg_fig.add_trace(go.Scatter(
+                x=ana.index[mask], y=ana["Close"][mask],
+                mode="markers",
+                name=rejim,
+                marker=dict(color=color, size=3, opacity=0.6),
+            ))
+        reg_fig.update_layout(
+            paper_bgcolor="#0f1117", plot_bgcolor="#0f1117",
+            font=dict(family="IBM Plex Mono", color="#94a3b8", size=11),
+            legend=dict(orientation="h", y=1.1, bgcolor="rgba(0,0,0,0)"),
+            margin=dict(l=10, r=10, t=30, b=10),
+            height=300,
+            yaxis=dict(title="Kapanış (₺)", showgrid=True, gridcolor="#1e2235"),
+            xaxis=dict(showgrid=False),
+        )
+        st.plotly_chart(reg_fig, use_container_width=True, config={"scrollZoom": True, "dragmode": "pan"})
+
         # İndir butonu
         st.markdown("---")
         csv = metrics.iloc[::-1].to_csv(encoding="utf-8-sig")
