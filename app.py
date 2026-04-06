@@ -15,9 +15,8 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🏛️ BIST Range-Slider Destekli Analiz Terminali")
+st.title("🏛️ BIST Gelişmiş Analiz Terminali (Likidite Fix)")
 
-# --- SIDEBAR (Veri İndirme Paneli) ---
 with st.sidebar:
     st.header("🔍 Global Veri Çek")
     symbol_raw = st.text_input("Sembol", placeholder="Örn: THYAO").strip().upper()
@@ -25,7 +24,6 @@ with st.sidebar:
     
     st.divider()
     st.subheader("📅 Veri Havuzu Aralığı")
-    # Yahoo'dan çekilecek maksimum veri sınırı
     g_start = st.date_input("Başlangıç Tarihi", value=datetime.now() - timedelta(days=365*2))
     g_end = st.date_input("Bitiş Tarihi", value=datetime.now())
     
@@ -44,7 +42,6 @@ if run_analysis:
             ticker = format_bist(symbol_raw)
             comp_ticker = format_bist(compare_raw)
             
-            # Veriyi çek
             df = yf.download(ticker, start=g_start, end=g_end, interval="1d")
             df_comp = yf.download(comp_ticker, start=g_start, end=g_end, interval="1d")
 
@@ -54,65 +51,65 @@ if run_analysis:
                 if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
                 if isinstance(df_comp.columns, pd.MultiIndex): df_comp.columns = df_comp.columns.get_level_values(0)
 
-                # HESAPLAMALAR
+                # --- HESAPLAMALAR ---
                 df['Daily Range'] = (df['High'] - df['Low']).round(2)
                 df['Pct_Change'] = df['Close'].pct_change() * 100
-                df['Amihud'] = (df['Pct_Change'].abs() / (df['Volume'] / 1000000)).round(4)
-
-                # --- 1. ANA GRAFİK (RANGE SLIDER BURADA) ---
-                st.subheader(f"📊 {symbol_raw} - Zaman Sürgülü Fiyat Analizi")
                 
+                # Amihud Fix: Çarpanı 10^8 yaparak değeri görünür kılıyoruz
+                # Formül: (|Getiri| / Hacim) * 100.000.000
+                df['Amihud'] = (df['Pct_Change'].abs() / df['Volume'] * 100000000).round(4)
+
+                # --- 1. ANA GRAFİK ---
+                st.subheader(f"📊 {symbol_raw} - Fiyat ve Hacim Profili")
                 fig_main = make_subplots(rows=1, cols=2, shared_yaxes=True, column_widths=[0.85, 0.15], horizontal_spacing=0.01)
+                fig_main.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Fiyat"), row=1, col=1)
                 
-                # Candlestick
-                fig_main.add_trace(go.Candlestick(
-                    x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Fiyat"
-                ), row=1, col=1)
-
-                # Hacim Profili (Sağ taraftaki bar)
+                # VRP
                 bins = 20
                 df['PriceBin'] = pd.cut(df['Close'], bins=bins)
                 v_prof = df.groupby('PriceBin', observed=True)['Volume'].sum()
                 fig_main.add_trace(go.Bar(x=v_prof.values, y=[i.mid for i in v_prof.index], orientation='h', marker_color='rgba(255, 75, 75, 0.2)', name="Hacim"), row=1, col=2)
 
-                # --- İSTEDİĞİN ÖZELLİK (RANGE SLIDER) ---
-                fig_main.update_xaxes(
-                    rangeslider_visible=True, # ALTTAKİ AYRAÇLI PANELİ AÇAR
-                    rangeselector=dict(
-                        buttons=list([
-                            dict(count=1, label="1A", step="month", stepmode="backward"),
-                            dict(count=6, label="6A", step="month", stepmode="backward"),
-                            dict(count=1, label="1Y", step="year", stepmode="backward"),
-                            dict(step="all", label="Tümü")
-                        ])
-                    )
-                )
-                
-                fig_main.update_layout(height=650, template="plotly_dark", showlegend=False, dragmode='pan')
+                fig_main.update_xaxes(rangeslider_visible=True)
+                fig_main.update_layout(height=600, template="plotly_dark", showlegend=False, dragmode='pan')
                 st.plotly_chart(fig_main, use_container_width=True, config={'scrollZoom': True})
 
-                # --- 2. DETAY GRAFİKLER (DUAL AXIS + SLIDER) ---
+                # --- 2. DUAL AXIS ANALİZLER (DÜZELTİLMİŞ EKSENLER) ---
                 st.divider()
                 st.subheader("📉 Likidite ve Volatilite Trend Analizi")
                 
-                def create_dual_with_slider(title, y1, name1, col1, y2, name2, col2, dash=None):
+                def create_dual_fixed(title, y1, name1, col1, y2, name2, col2, dash=None):
                     f = go.Figure()
                     f.add_trace(go.Scatter(x=df.index, y=y1, name=name1, line=dict(color=col1, width=2.5), yaxis="y1"))
                     f.add_trace(go.Scatter(x=df.index, y=y2, name=name2, line=dict(color=col2, width=2.5, dash=dash), yaxis="y2"))
                     
                     f.update_layout(
                         title=title, template="plotly_dark", height=500,
-                        yaxis=dict(title=name1, tickfont=dict(color=col1)),
-                        yaxis2=dict(title=name2, tickfont=dict(color=col2), anchor="x", overlaying="y", side="right"),
+                        # Y1 Ekseni (Amihud için özel ayar: autorange=True sayesinde 0'a yapışmaz)
+                        yaxis=dict(
+                            title=dict(text=name1, font=dict(color=col1)), 
+                            tickfont=dict(color=col1),
+                            autorange=True, 
+                            fixedrange=False
+                        ),
+                        # Y2 Ekseni (Daily Range veya Close)
+                        yaxis2=dict(
+                            title=dict(text=name2, font=dict(color=col2)), 
+                            tickfont=dict(color=col2), 
+                            anchor="x", overlaying="y", side="right",
+                            autorange=True,
+                            fixedrange=False
+                        ),
                         hovermode="x unified",
-                        xaxis=dict(rangeslider_visible=True) # HER GRAFİĞİN ALTINA AYRAÇ EKLENDİ
+                        xaxis=dict(rangeslider_visible=True),
+                        dragmode='pan'
                     )
                     st.plotly_chart(f, use_container_width=True, config={'scrollZoom': True})
 
-                dual_plot_data = df.tail(100) # Sayfa yüklenince son 100 günü göster ama slider ile hepsine bakılabilir
-                
-                create_dual_with_slider("Amihud (Sol) vs Daily Range (Sağ)", df['Amihud'], "Amihud", "#00FFCC", df['Daily Range'], "Daily Range", "#FFD700", dash='dot')
-                create_dual_with_slider("Fiyat (Sol) vs Daily Range (Sağ)", df['Close'], "Fiyat", "#FFFFFF", df['Daily Range'], "Daily Range", "#FFD700")
+                # Grafikleri Oluştur
+                create_dual_fixed("Amihud (Sol) vs Daily Range (Sağ)", df['Amihud'], "Amihud Skoru", "#00FFCC", df['Daily Range'], "Daily Range", "#FFD700", dash='dot')
+                create_dual_fixed("Fiyat (Sol) vs Daily Range (Sağ)", df['Close'], "Fiyat", "#FFFFFF", df['Daily Range'], "Daily Range", "#FFD700")
+                create_dual_fixed("Fiyat (Sol) vs Amihud (Sağ)", df['Close'], "Fiyat", "#FFFFFF", df['Amihud'], "Amihud Skoru", "#00FFCC")
 
                 # --- 3. TABLO ---
                 st.divider()
@@ -121,4 +118,4 @@ if run_analysis:
                 st.dataframe(df[['Open', 'High', 'Low', 'Close', 'Volume', 'Daily Range', 'Amihud', 'Değişim %']].sort_index(ascending=False), use_container_width=True, height=400)
 
 else:
-    st.info("👈 Analizi başlatmak için sol menüden sembol ve tarih havuzunu belirleyin.")
+    st.info("👈 Analizi başlatmak için bir sembol girin.")
