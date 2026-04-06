@@ -302,29 +302,34 @@ if run or "last_ticker" in st.session_state:
         # İkinci eksen verisi
         sec_col  = _secondary
         sec_data = metrics[sec_col].dropna()
-        use_log  = (sec_col == "Amihud (×10⁶)")
 
-        # Rolling trend (30 günlük pencere)
-        window = min(30, len(sec_data))
-        trend_vals = []
-        for i in range(len(sec_data)):
-            start_i = max(0, i - window + 1)
-            segment = sec_data.iloc[start_i:i+1]
-            x_seg   = np.arange(len(segment))
-            if len(segment) >= 2:
-                fit_y = np.log1p(segment.values) if use_log else segment.values
-                z = np.polyfit(x_seg, fit_y, 1)
-                val = np.poly1d(z)(len(segment) - 1)
-                trend_vals.append(np.expm1(val) if use_log else val)
-            else:
-                trend_vals.append(segment.iloc[-1])
-
-        fig.add_trace(go.Scatter(
-            x=sec_data.index,
-            y=trend_vals,
-            name=f"{sec_col} Trend",
-            line=dict(color="#f59e0b", width=1.8),
-        ), secondary_y=True)
+        # Amihud: ham değeri çizgi olarak çiz (log değil, otomatik ölçek)
+        # Daily Range: rolling trend
+        if sec_col == "Amihud (×10⁶)":
+            fig.add_trace(go.Scatter(
+                x=sec_data.index,
+                y=sec_data.values,
+                name=sec_col,
+                line=dict(color="#f59e0b", width=1.2),
+            ), secondary_y=True)
+        else:
+            window = min(30, len(sec_data))
+            trend_vals = []
+            for i in range(len(sec_data)):
+                start_i = max(0, i - window + 1)
+                segment = sec_data.iloc[start_i:i+1]
+                x_seg   = np.arange(len(segment))
+                if len(segment) >= 2:
+                    z = np.polyfit(x_seg, segment.values, 1)
+                    trend_vals.append(np.poly1d(z)(len(segment) - 1))
+                else:
+                    trend_vals.append(segment.iloc[-1])
+            fig.add_trace(go.Scatter(
+                x=sec_data.index,
+                y=trend_vals,
+                name=f"{sec_col} Trend",
+                line=dict(color="#f59e0b", width=1.8),
+            ), secondary_y=True)
 
         fig.update_layout(
             paper_bgcolor="#0f1117",
@@ -366,8 +371,8 @@ if run or "last_ticker" in st.session_state:
             tickfont=dict(color="#7dd3fc"),
             showgrid=False,
             secondary_y=True,
-            type="log" if use_log else "linear",
-            range=[0, 6] if not use_log else None,
+            type="linear",
+            range=[0, 6] if sec_col == "Daily Range (%)" else None,
         )
 
         st.plotly_chart(fig, use_container_width=True)
