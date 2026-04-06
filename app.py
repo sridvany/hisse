@@ -303,13 +303,16 @@ if run or "last_ticker" in st.session_state:
         sec_col  = _secondary
         sec_data = metrics[sec_col].dropna()
 
-        # Amihud: percentile rank (0-100) — her zaman dalgalanır
+        # Amihud: rolling 252 günlük percentile rank
         if sec_col == "Amihud (×10⁶)":
-            ranked = sec_data.rank(pct=True) * 100
+            window_p = 252
+            rolled = sec_data.rolling(window=window_p, min_periods=20).apply(
+                lambda x: (x[-1] > x[:-1]).sum() / (len(x) - 1) * 100, raw=True
+            )
             fig.add_trace(go.Scatter(
-                x=ranked.index,
-                y=ranked.values,
-                name="Amihud Percentile",
+                x=rolled.index,
+                y=rolled.values,
+                name="Amihud Percentile (252g)",
                 line=dict(color="#f59e0b", width=1.2),
             ), secondary_y=True)
         else:
