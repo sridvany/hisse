@@ -295,10 +295,20 @@ if run or "last_ticker" in st.session_state:
             x=metrics.index,
             y=metrics["Daily Range (%)"],
             name="Daily Range (%)",
-            marker_color="rgba(125, 211, 252, 0.35)",
+            marker_color="rgba(255,255,255,0.08)",
         ), secondary_y=True)
 
-        # Daily Range trend çizgisi kaldırıldı — ham barlar yeterli
+        # Trend çizgisi (lineer regresyon)
+        dr = metrics["Daily Range (%)"].dropna()
+        x_num = np.arange(len(dr))
+        z = np.polyfit(x_num, dr.values, 1)
+        trend = np.poly1d(z)(x_num)
+        fig.add_trace(go.Scatter(
+            x=dr.index,
+            y=trend,
+            name="Range Trend",
+            line=dict(color="#f59e0b", width=1.8, dash="dot"),
+        ), secondary_y=True)
 
         fig.update_layout(
             paper_bgcolor="#0f1117",
@@ -340,7 +350,7 @@ if run or "last_ticker" in st.session_state:
             tickfont=dict(color="#7dd3fc"),
             showgrid=False,
             secondary_y=True,
-            range=[0, 10],
+            range=[0, 15],
         )
 
         st.plotly_chart(fig, use_container_width=True)
