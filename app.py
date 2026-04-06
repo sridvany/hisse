@@ -7,49 +7,50 @@ from plotly.subplots import make_subplots
 # Sayfa Ayarları
 st.set_page_config(page_title="BIST Analiz", layout="wide", initial_sidebar_state="expanded")
 
-# CSS ile buton ve arayüzü biraz daha profesyonel gösterelim
+# Arayüzü özelleştirmek için küçük bir dokunuş
 st.markdown("""
     <style>
-    .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #ff4b4b; color: white; }
-    .stDataFrame { border: 1px solid #31333F; border-radius: 5px; }
+    .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #ff4b4b; color: white; font-weight: bold; }
+    .stTextInput>div>div>input { text-transform: uppercase; }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("🚀 BIST Profesyonel Günlük Trade Paneli")
 
-# --- SIDEBAR ---
+# --- SIDEBAR (Sol Menü) ---
 with st.sidebar:
     st.header("🔍 Analiz Ayarları")
     
-    # Kullanıcı girişleri
-    symbol_raw = st.text_input("Hisse Sembolü", placeholder="Örn: THYAO, ASELS...").strip().upper()
+    # "Hisse" kelimesi kaldırıldı, sadece "Sembol" yapıldı.
+    symbol_raw = st.text_input("Sembol", placeholder="Örn: THYAO, ASELS...").strip().upper()
     compare_raw = st.text_input("Korelasyon (Endeks/Hisse)", value="XU100").strip().upper()
     
     st.divider()
     
-    # Analiz Butonu
+    # Çalıştır butonu
     run_analysis = st.button("ANALİZİ BAŞLAT")
 
 # Sembol Formatlama Fonksiyonu
 def format_bist(s):
     if not s: return None
+    # Eğer kullanıcı zaten .IS eklediyse dokunma, eklemediyse ekle
     return f"{s}.IS" if not s.endswith(".IS") else s
 
 # --- ANA EKRAN MANTIĞI ---
 if run_analysis:
     if not symbol_raw:
-        st.warning("⚠️ Lütfen önce bir hisse sembolü giriniz.")
+        st.warning("⚠️ Lütfen önce bir sembol giriniz.")
     else:
-        with st.spinner('Veriler çekiliyor ve analiz ediliyor...'):
+        with st.spinner('Veriler çekiliyor...'):
             ticker = format_bist(symbol_raw)
             comp_ticker = format_bist(compare_raw)
             
-            # Veri Çekme
+            # Veri Çekme (60 günlük veri çekip analiz ediyoruz)
             df = yf.download(ticker, period="60d", interval="1d")
             df_comp = yf.download(comp_ticker, period="60d", interval="1d")
 
             if df.empty or len(df) < 5:
-                st.error(f"❌ {symbol_raw} için veri bulunamadı! Sembolün doğruluğundan emin olun (Örn: THYAO).")
+                st.error(f"❌ {symbol_raw} için veri bulunamadı. Sembolün doğruluğunu kontrol edin.")
             else:
                 # --- 1. GRAFİK VE VOLUME PROFILE ---
                 col_left, col_right = st.columns([3, 1])
@@ -65,8 +66,7 @@ if run_analysis:
                         low=df['Low'], close=df['Close'], name="Fiyat"
                     ), row=1, col=1)
 
-                    # Hacim Profili Hesaplama
-                    price_min, price_max = float(df['Low'].min()), float(df['High'].max())
+                    # Manuel Hacim Profili (VRP) Hesaplama
                     bins = 20
                     df['PriceBin'] = pd.cut(df['Close'], bins=bins)
                     vprofile = df.groupby('PriceBin', observed=True)['Volume'].sum()
@@ -77,14 +77,14 @@ if run_analysis:
                         marker_color='rgba(100, 150, 250, 0.4)', name="Hacim Profili"
                     ), row=1, col=2)
 
-                    fig.update_layout(xaxis_rangeslider_visible=False, height=600, 
+                    fig.update_layout(xaxis_rangeslider_visible=False, height=550, 
                                       template="plotly_dark", showlegend=False,
                                       margin=dict(l=20, r=20, t=20, b=20))
                     st.plotly_chart(fig, use_container_width=True)
 
                 with col_right:
                     st.subheader("🔗 Korelasyon")
-                    # Korelasyon Hesaplama
+                    # Son 30 günlük kapanışları hizala
                     combined = pd.concat([df['Close'], df_comp['Close']], axis=1).dropna().tail(30)
                     combined.columns = ['Hisse', 'Endeks']
                     
@@ -94,13 +94,13 @@ if run_analysis:
                         
                         st.metric("Pearson (Lineer)", f"{p_corr:.2f}")
                         st.metric("Spearman (Trend)", f"{s_corr:.2f}")
-                        st.info(f"Bu veriler {compare_raw} baz alınarak son 30 gün için hesaplanmıştır.")
+                        st.caption(f"Veriler {compare_raw} ile son 30 gün için kıyaslanmıştır.")
                     else:
-                        st.warning("Korelasyon verisi yetersiz.")
+                        st.warning("Veri yetersiz.")
 
-                # --- 2. LİSTE ---
+                # --- 2. LİSTE (30 GÜNLÜK) ---
                 st.divider()
-                st.subheader("📅 Son 30 Günlük Fiyat Listesi")
+                st.subheader("📅 Son 30 Günlük Fiyat Hareketleri")
                 
                 res_df = df.tail(30).copy()
                 res_df['Günlük Değişim %'] = (res_df['Close'].pct_change() * 100).round(2)
@@ -112,11 +112,11 @@ if run_analysis:
 
                 res_df['Durum'] = res_df['Günlük Değişim %'].apply(color_sign)
                 
-                # Sadece gerekli kolonları göster ve tarih formatını düzelt
-                final_table = res_df[['Open', 'High', 'Low', 'Close', 'Volume', 'Durum']].sort_index(ascending=False)
-                st.dataframe(final_table, use_container_width=True)
+                # Tablo Görünümü
+                table_to_show = res_df[['Open', 'High', 'Low', 'Close', 'Volume', 'Durum']].sort_index(ascending=False)
+                st.dataframe(table_to_show, use_container_width=True)
 
 else:
-    # Başlangıç Ekranı
-    st.info("👈 Analize başlamak için sol taraftaki menüden bir sembol girin ve 'ANALİZİ BAŞLAT' butonuna tıklayın.")
-    st.image("https://images.unsplash.com/photo-1611974717482-98aa03509162?q=80&w=1000", caption="BIST Data Analysis Environment")
+    # Boş Başlangıç Ekranı
+    st.info("👈 Analize başlamak için sol tarafa bir sembol yazın ve butona tıklayın.")
+    st.image("https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?q=80&w=1000", caption="BIST Data Terminal")
