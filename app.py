@@ -87,12 +87,18 @@ h1, h2, h3 {
 """, unsafe_allow_html=True)
 
 # ── Yardımcı Fonksiyonlar ────────────────────────────────────────────────────
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False, persist=False)
 def fetch_data(ticker: str, start: str) -> pd.DataFrame:
     df = yf.download(ticker, start=start, auto_adjust=True, progress=False)
     if df.empty:
         return pd.DataFrame()
-    df.columns = [c[0] if isinstance(c, tuple) else c for c in df.columns]
+    # yfinance >= 0.2.x MultiIndex sütunlarını düzleştir
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = [c[0] for c in df.columns]
+    else:
+        df.columns = [c[0] if isinstance(c, tuple) else c for c in df.columns]
+    df = df[~df.index.duplicated(keep="first")]
+    df.dropna(subset=["Close", "Open", "High", "Low", "Volume"], inplace=True)
     return df
 
 def compute_metrics(df: pd.DataFrame) -> pd.DataFrame:
