@@ -115,9 +115,9 @@ def fetch_intraday(ticker: str, selected_date: str) -> pd.DataFrame:
         if df.empty:
             return pd.DataFrame()
         df = _flatten(df)
+        df.index = df.index.tz_convert("Europe/Istanbul")
         df = df[~df.index.duplicated(keep="first")]
         df.dropna(subset=["Close", "Open", "High", "Low", "Volume"], inplace=True)
-        # Seçilen güne filtrele
         day_df = df[df.index.date == pd.Timestamp(selected_date).date()]
         return day_df
     except Exception:
@@ -132,6 +132,7 @@ def fetch_intraday_60d(ticker: str) -> pd.DataFrame:
         if df.empty:
             return pd.DataFrame()
         df = _flatten(df)
+        df.index = df.index.tz_convert("Europe/Istanbul")
         df = df[~df.index.duplicated(keep="first")]
         df.dropna(subset=["Close", "Open", "High", "Low", "Volume"], inplace=True)
         return df
