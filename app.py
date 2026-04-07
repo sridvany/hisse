@@ -188,6 +188,7 @@ def compute_intraday_metrics(df: pd.DataFrame, df_60d: pd.DataFrame) -> pd.DataF
     return out
 
 
+def compute_metrics(df: pd.DataFrame) -> pd.DataFrame:
     """Günlük kapanış, güniçi değişim, Amihud, Daily Range, Corwin-Schultz, MEC hesapla."""
     out = pd.DataFrame(index=df.index)
     out["Kapanış (₺)"]     = df["Close"].round(2)
