@@ -394,6 +394,8 @@ MEC > 1 → fiyat yeni dengeye yavaş dönüyor = düşük esneklik.
 **Bu uygulamada:** Son 60 günün aynı 2dk zaman dilimine ait ortalama hacmi referans alınır.
         """)
     st.markdown("---")
+    run = st.button("⚡ Veriyi Çek", use_container_width=True, type="primary")
+    st.markdown("---")
     auto_refresh = st.checkbox("🔄 Otomatik Yenile (55s)", value=False)
     if auto_refresh:
         st.markdown(f"<span style='color:#6b7280;font-size:0.8em'>Son: {datetime.now().strftime('%H:%M:%S')}</span>", unsafe_allow_html=True)
