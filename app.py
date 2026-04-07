@@ -345,6 +345,154 @@ if run or "last_ticker" in st.session_state:
         sc4.metric("📕 Düşüş Günü Sayısı", f"{len(down_days):,}")
         st.markdown("---")
 
+        # ── Likidite Yorumu ──────────────────────────────────────────────────
+        def likidite_yorum(metrics: pd.DataFrame) -> None:
+            m = metrics.dropna(subset=["Daily Range (%)", "Amihud (×10⁶)", "Hacim", "C-S Spread (%)", "MEC"])
+            if len(m) < 21:
+                st.info("Yorum için yeterli veri yok (min. 21 gün).")
+                return
+
+            son      = m.iloc[-1]
+            trend_w  = 20  # trend penceresi
+
+            # ── Percentile hesabı ────────────────────────────────────────────
+            def pct(series, val):
+                return round((series < val).mean() * 100, 1)
+
+            dr_pct    = pct(m["Daily Range (%)"],  son["Daily Range (%)"])
+            amihud_v  = abs(np.log10(son["Amihud (×10⁶)"])) if son["Amihud (×10⁶)"] > 0 else np.nan
+            amihud_s  = m["Amihud (×10⁶)"].apply(lambda x: abs(np.log10(x)) if x > 0 else np.nan).dropna()
+            amihud_pct= pct(amihud_s, amihud_v) if amihud_v else 50
+            hacim_pct = pct(m["Hacim"], son["Hacim"])
+            cs_valid  = m[m["C-S Spread (%)"] > 0]["C-S Spread (%)"]
+            cs_pct    = pct(cs_valid, son["C-S Spread (%)"]) if (son["C-S Spread (%)"] > 0 and len(cs_valid) > 0) else None
+            mec_pct   = pct(m["MEC"].dropna(), son["MEC"]) if pd.notna(son["MEC"]) else None
+
+            # ── Trend yönü (son 20 gün ortalaması vs önceki 20 gün) ──────────
+            def trend(series):
+                s = series.dropna()
+                if len(s) < trend_w * 2:
+                    return 0
+                return s.iloc[-trend_w:].mean() - s.iloc[-trend_w*2:-trend_w].mean()
+
+            dr_trend     = trend(m["Daily Range (%)"])
+            amihud_trend = trend(amihud_s)
+            hacim_trend  = trend(m["Hacim"])
+            cs_trend     = trend(cs_valid) if len(cs_valid) >= trend_w * 2 else 0
+            mec_trend    = trend(m["MEC"].dropna())
+
+            # ── Sinyal üret (iyi/nötr/kötü) ─────────────────────────────────
+            # Amihud, Daily Range, C-S Spread: yüksek = kötü
+            # Hacim: düşük = kötü
+            # MEC: >1 = kötü
+            sinyaller = {}
+
+            def sinyal_ters(pct_val, tr):  # yüksek = kötü
+                if pct_val >= 75:   s = "kötü"
+                elif pct_val >= 50: s = "nötr"
+                else:               s = "iyi"
+                t = "↑" if tr > 0 else ("↓" if tr < 0 else "→")
+                return s, t
+
+            def sinyal_duz(pct_val, tr):   # yüksek = iyi
+                if pct_val >= 75:   s = "iyi"
+                elif pct_val >= 50: s = "nötr"
+                else:               s = "kötü"
+                t = "↑" if tr > 0 else ("↓" if tr < 0 else "→")
+                return s, t
+
+            sinyaller["Daily Range"]  = sinyal_ters(dr_pct,     dr_trend)
+            sinyaller["Amihud"]       = sinyal_ters(amihud_pct, amihud_trend)
+            sinyaller["Hacim"]        = sinyal_duz (hacim_pct,  hacim_trend)
+            if cs_pct is not None:
+                sinyaller["C-S Spread"] = sinyal_ters(cs_pct,   cs_trend)
+            if mec_pct is not None:
+                mec_sinyal = "kötü" if son["MEC"] > 1 else ("nötr" if son["MEC"] > 0.8 else "iyi")
+                mec_trend_ok = "↑" if mec_trend > 0 else ("↓" if mec_trend < 0 else "→")
+                sinyaller["MEC"] = (mec_sinyal, mec_trend_ok)
+
+            kotu  = sum(1 for s, _ in sinyaller.values() if s == "kötü")
+            iyi   = sum(1 for s, _ in sinyaller.values() if s == "iyi")
+            toplam = len(sinyaller)
+
+            # ── Genel skor ───────────────────────────────────────────────────
+            if kotu >= toplam * 0.6:
+                genel, renk, ikon = "Düşük Likidite", "#ef4444", "🔴"
+            elif iyi >= toplam * 0.6:
+                genel, renk, ikon = "Yüksek Likidite", "#22c55e", "🟢"
+            else:
+                genel, renk, ikon = "Orta Likidite", "#f59e0b", "🟡"
+
+            # ── Boyut kartları ───────────────────────────────────────────────
+            renk_map = {"iyi": "#22c55e", "nötr": "#94a3b8", "kötü": "#ef4444"}
+            etiket_map = {
+                "Daily Range":  ("Anındalık",  f"%{dr_pct:.0f} persentil"),
+                "Amihud":       ("Genişlik",   f"%{amihud_pct:.0f} persentil"),
+                "Hacim":        ("Derinlik",   f"%{hacim_pct:.0f} persentil"),
+                "C-S Spread":   ("Sıkılık",    f"%{cs_pct:.0f} persentil" if cs_pct else "—"),
+                "MEC":          ("Esneklik",   f"MEC = {son['MEC']:.3f}" if pd.notna(son["MEC"]) else "—"),
+            }
+
+            st.markdown(f"### {ikon} Likidite Durumu: <span style='color:{renk}'>{genel}</span>", unsafe_allow_html=True)
+
+            boyut_cols = st.columns(len(sinyaller))
+            for col_i, (boyut, (sinyal, trend_ok)) in enumerate(sinyaller.items()):
+                r = renk_map[sinyal]
+                ad, detay = etiket_map[boyut]
+                boyut_cols[col_i].markdown(
+                    f"<div style='background:#1e2235;border-left:3px solid {r};padding:10px 12px;border-radius:6px'>"
+                    f"<div style='color:#94a3b8;font-size:0.75em;font-family:IBM Plex Mono'>{boyut}</div>"
+                    f"<div style='color:{r};font-weight:600;font-size:1em'>{ad}</div>"
+                    f"<div style='color:#94a3b8;font-size:0.78em'>{detay} {trend_ok}</div>"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
+
+            # ── Metin yorumu ─────────────────────────────────────────────────
+            st.markdown("")
+            paragraf = []
+
+            # Genel durum
+            if genel == "Düşük Likidite":
+                paragraf.append(f"**{_ticker}** bugün itibarıyla **düşük likidite** koşullarında işlem görüyor.")
+            elif genel == "Yüksek Likidite":
+                paragraf.append(f"**{_ticker}** bugün itibarıyla **yüksek likidite** koşullarında işlem görüyor.")
+            else:
+                paragraf.append(f"**{_ticker}** bugün itibarıyla **karma likidite** koşullarında işlem görüyor.")
+
+            # Boyut bazlı yorumlar
+            if sinyaller.get("Amihud", ("nötr",))[0] == "kötü" and sinyaller.get("Hacim", ("nötr",))[0] == "kötü":
+                paragraf.append("Fiyat etkisi yüksek, işlem hacmi düşük — büyük emirler ciddi kayma yaratabilir.")
+            elif sinyaller.get("Amihud", ("nötr",))[0] == "iyi" and sinyaller.get("Hacim", ("nötr",))[0] == "iyi":
+                paragraf.append("Fiyat etkisi düşük ve hacim güçlü — emir gerçekleştirme maliyeti tarihsel olarak düşük.")
+            elif sinyaller.get("Amihud", ("nötr",))[0] != sinyaller.get("Hacim", ("nötr",))[0]:
+                paragraf.append("Amihud ve hacim sinyalleri çelişiyor — likidite konusunda temkinli olmak gerekir.")
+
+            if sinyaller.get("Daily Range", ("nötr",))[0] == "kötü":
+                paragraf.append(f"Günlük fiyat aralığı tarihsel dağılımın %{dr_pct:.0f}'lik dilimine girmiş; anındalık zayıf.")
+            
+            if cs_pct is not None and sinyaller.get("C-S Spread", ("nötr",))[0] == "kötü":
+                paragraf.append(f"Bid-ask spread %{cs_pct:.0f} persentilde — işlem maliyeti yüksek.")
+
+            if pd.notna(son.get("MEC")):
+                if son["MEC"] > 1:
+                    paragraf.append(f"MEC = {son['MEC']:.3f} (>1): Fiyat yeni dengesine yavaş dönüyor, piyasa esnekliği zayıf.")
+                else:
+                    paragraf.append(f"MEC = {son['MEC']:.3f} (≤1): Fiyat yeni dengesine hızlı dönüyor, piyasa dayanıklı.")
+
+            # Trend özeti
+            kotu_trend  = sum(1 for _, t in sinyaller.values() if t == "↑" and _ == "kötü")
+            iyi_trend   = sum(1 for _, t in sinyaller.values() if t == "↓" and _ == "kötü")
+            if kotu_trend >= 2:
+                paragraf.append("Son 20 günlük trend likiditenin **kötüleştiğine** işaret ediyor.")
+            elif iyi_trend >= 2:
+                paragraf.append("Son 20 günlük trend likiditenin **iyileştiğine** işaret ediyor.")
+
+            st.markdown(" ".join(paragraf))
+
+        likidite_yorum(metrics)
+        st.markdown("---")
+
         # ── Dual-Axis Grafik ─────────────────────────────────────────────────
         fig = make_subplots(specs=[[{"secondary_y": True}]])
 
