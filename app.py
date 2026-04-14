@@ -243,7 +243,7 @@ def compute_metrics(df: pd.DataFrame) -> pd.DataFrame:
         var30 = seg30.var(ddof=1) if len(seg30) > 1 else np.nan
 
         if pd.notna(var30) and var30 > 0 and pd.notna(var5):
-            mec_vals.append(round(6 * var5 / var30, 4))
+            mec_vals.append(round(var30 / (6 * var5), 4))
         else:
             mec_vals.append(np.nan)
 
