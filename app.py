@@ -959,10 +959,10 @@ if run or "last_ticker" in st.session_state:
         table_html = f"""
         <style>
         .data-table {{ width:100%;border-collapse:collapse;font-size:0.82em;margin-top:8px; }}
-        .data-table th {{ background:#1e2235;color:#7dd3fc;font-family:'IBM Plex Mono',monospace;font-weight:600;padding:6px 8px;text-align:right;border-bottom:2px solid #2a2d3e;white-space:nowrap;font-size:0.78em; }}
-        .data-table th:first-child {{ text-align:left; }}
-        .data-table td {{ padding:5px 8px;text-align:right;border-bottom:1px solid #1e2235;white-space:nowrap;font-size:0.80em; }}
-        .data-table td:first-child {{ text-align:left; }}
+        .data-table th {{ background:#1e2235;color:#7dd3fc;font-family:'IBM Plex Mono',monospace;font-weight:600;padding:6px 6px;text-align:right;border-bottom:2px solid #2a2d3e;white-space:nowrap;max-width:90px;overflow:hidden; }}
+        .data-table th:first-child {{ text-align:left;max-width:80px; }}
+        .data-table td {{ padding:5px 6px;text-align:right;border-bottom:1px solid #1e2235;white-space:nowrap;max-width:90px;overflow:hidden; }}
+        .data-table td:first-child {{ text-align:left;max-width:80px; }}
         .data-table tr:hover td {{ background:#141824; }}
         </style>
         <div style="overflow-x:auto;max-height:65vh;overflow-y:auto;">
