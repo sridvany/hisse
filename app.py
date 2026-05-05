@@ -975,10 +975,10 @@ if run or "last_ticker" in st.session_state:
             fig_i.update_xaxes(showgrid=False, color="#94a3b8")
             fig_i.update_yaxes(title_text="Kapanış", title_font=dict(color="#22c55e"),
                                tickfont=dict(color="#22c55e"), showgrid=True,
-                               gridcolor="#1e2235", secondary_y=False)
+                               gridcolor="#1e2235", fixedrange=True, secondary_y=False)
             fig_i.update_yaxes(title_text="Gösterge", title_font=dict(color="#7dd3fc"),
                                tickfont=dict(color="#7dd3fc"), showgrid=False,
-                               autorange=True, secondary_y=True)
+                               autorange=True, fixedrange=True, secondary_y=True)
             st.plotly_chart(fig_i, use_container_width=True, config={"scrollZoom": True, "displayModeBar": True})
 
             st.markdown("---")
