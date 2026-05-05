@@ -146,6 +146,23 @@ def fetch_intraday_60d(ticker: str) -> pd.DataFrame:
     except Exception:
         return pd.DataFrame()
 
+@st.cache_data(ttl=120, show_spinner=False, persist=False)
+def fetch_prev_close(ticker: str, selected_date: str) -> float | None:
+    """Seçili günden önceki iş gününün kapanışı (yfinance 1d seri — previousClose ile aynı)."""
+    try:
+        df = yf.download(ticker, period="10d", interval="1d",
+                         auto_adjust=True, progress=False)
+        if df.empty:
+            return None
+        df = _flatten(df)
+        sel = pd.Timestamp(selected_date).date()
+        prev = df[df.index.date < sel]
+        if prev.empty:
+            return None
+        return float(prev["Close"].iloc[-1])
+    except Exception:
+        return None
+
 def compute_intraday_metrics(df: pd.DataFrame, df_60d: pd.DataFrame) -> pd.DataFrame:
     """2dk bar metrikleri: fiyat, hacim, RVOL, Daily Range, Amihud, C-S Spread."""
     out = pd.DataFrame(index=df.index)
@@ -268,19 +285,26 @@ def build_daily_payload(metrics: pd.DataFrame, ticker: str) -> dict:
     }
 
 
-def build_intraday_payload(intra: pd.DataFrame, ticker: str, sel_date: str) -> dict:
+def build_intraday_payload(intra: pd.DataFrame, ticker: str, sel_date: str,
+                            prev_close: float | None = None) -> dict:
     if intra.empty:
         return {}
+    close_p = float(intra["Kapanış"].iloc[-1])
+    if prev_close is not None and prev_close > 0:
+        chg_pct = (close_p / prev_close - 1) * 100
+    else:
+        chg_pct = (close_p / float(intra["Açılış"].iloc[0]) - 1) * 100
     return {
         "ticker": ticker,
         "tarih": sel_date,
         "bar_sayısı": int(len(intra)),
         "fiyat": {
             "açılış": round(float(intra["Açılış"].iloc[0]), 4),
-            "kapanış": round(float(intra["Kapanış"].iloc[-1]), 4),
+            "kapanış": round(close_p, 4),
             "yüksek": round(float(intra["Yüksek"].max()), 4),
             "düşük": round(float(intra["Düşük"].min()), 4),
-            "değişim_%": round(float((intra["Kapanış"].iloc[-1] / intra["Açılış"].iloc[0] - 1) * 100), 2),
+            "önceki_kapanış": round(float(prev_close), 4) if prev_close else None,
+            "değişim_%": round(float(chg_pct), 2),
         },
         "likidite": {
             "Bar_Range_%":   _col_summary(intra, "Bar Range (%)"),
@@ -794,7 +818,11 @@ if run or "last_ticker" in st.session_state:
             close_p = df_day["Close"].iloc[-1]
             high_p  = df_day["High"].max()
             low_p   = df_day["Low"].min()
-            gunici_chg = (close_p - open_p) / open_p * 100
+            prev_close = fetch_prev_close(_ticker, sel_date)
+            if prev_close is not None and prev_close > 0:
+                gunici_chg = (close_p - prev_close) / prev_close * 100
+            else:
+                gunici_chg = (close_p - open_p) / open_p * 100  # fallback
             chg_sign = "+" if gunici_chg > 0 else ""
 
             k1, k2, k3, k4, k5 = st.columns(5)
@@ -1014,7 +1042,7 @@ if run or "last_ticker" in st.session_state:
                 ai_c2.info("Sidebar'dan Gemini API key girerek aktive edebilirsiniz.")
 
             if run_ai_intra:
-                payload = build_intraday_payload(intra, _ticker, sel_date)
+                payload = build_intraday_payload(intra, _ticker, sel_date, prev_close=prev_close)
                 prompt  = build_intraday_prompt(payload, detail_level)
                 try:
                     with st.spinner("Gemini yorum üretiyor..."):
@@ -1483,7 +1511,7 @@ else:
     | Gösterge | Açıklama |
     |---|---|
     | **Günlük Değ. (%)** | Önceki kapanışa göre değişim |
-    | **Güniçi Değ. (%)** | (Kapanış − Açılış) / Açılış × 100 |
+    | **Güniçi Değ. (%)** | (Kapanış − Önceki Kapanış) / Önceki Kapanış × 100 — yfinance standardı |
     | **Daily Range (₺)** | Yüksek − Düşük (mutlak fark) |
     | **Amihud (×10⁶)** | |Getiri| / Hacim × 10⁶ — düşük = likit |
     """)
