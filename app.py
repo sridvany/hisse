@@ -581,6 +581,16 @@ def compute_metrics(df: pd.DataFrame) -> pd.DataFrame:
 
     out["MEC"] = mec_vals
 
+    # ── ATR (Wilder, 14) — günlük volatilite (₺) ─────────────────────────────
+    # TR = max(H−L, |H−Cprev|, |L−Cprev|) ; ATR = TR'nin Wilder ortalaması (α=1/14)
+    prev_close = df["Close"].shift(1)
+    tr = pd.concat([
+        df["High"] - df["Low"],
+        (df["High"] - prev_close).abs(),
+        (df["Low"]  - prev_close).abs(),
+    ], axis=1).max(axis=1)
+    out["ATR (₺)"] = tr.ewm(alpha=1/14, adjust=False, min_periods=14).mean().round(2)
+
     amihud    = out["Amihud (×10⁶)"].copy()
     log_hacim = out["log₁₀(Hacim)"].copy()
     out = out.round(4)
@@ -608,6 +618,8 @@ def color_val(val, col):
             return '<span class="neutral">—</span>'
         return f'<span class="neutral">{log_val:.2f}</span>'
     if col == "Daily Range (₺)":
+        return f'<span class="neutral">{val:.2f}</span>'
+    if col == "ATR (₺)":
         return f'<span class="neutral">{val:.2f}</span>'
     if col == "Daily Range (%)":
         return f'<span class="neutral">{val:.2f}%</span>'
@@ -677,6 +689,7 @@ with st.sidebar:
     volatility_metric = st.radio(
         "📈 Volatilite Boyutları",
         options=[
+            "ATR (₺) — 14g Wilder",
             "Parkinson (%) — Güniçi Salınım",
             "Garman-Klass (%) — OHLC Verimli",
         ],
@@ -1373,7 +1386,7 @@ if run or "last_ticker" in st.session_state:
         cols_show = [
             "Günlük Değ. (%)", "Güniçi Değ. (%)",
             "Daily Range (₺)", "Daily Range (%)", "Amihud (×10⁶)", "log₁₀(Hacim)",
-            "C-S Spread (%)", "MEC", "Parkinson (%)", "Garman-Klass (%)"
+            "C-S Spread (%)", "MEC", "ATR (₺)", "Parkinson (%)", "Garman-Klass (%)"
         ]
 
         st.markdown(
