@@ -981,39 +981,6 @@ if run or "last_ticker" in st.session_state:
                                autorange=True, secondary_y=True)
             st.plotly_chart(fig_i, use_container_width=True, config={"scrollZoom": True, "displayModeBar": True})
 
-            fig_l = make_subplots(rows=3, cols=1, shared_xaxes=True,
-                                  subplot_titles=["RVOL", "Bar Range (%) & C-S Spread (%)", "Amihud (2dk)"],
-                                  vertical_spacing=0.08)
-
-            rvol_colors = ["#22c55e" if v >= 1.2 else ("#ef4444" if v < 0.8 else "#f59e0b")
-                           for v in intra["RVOL"].fillna(1.0)]
-            fig_l.add_trace(go.Bar(x=intra.index, y=intra["RVOL"],
-                                   name="RVOL", marker_color=rvol_colors, opacity=0.8), row=1, col=1)
-            fig_l.add_hline(y=1.0, line=dict(color="#6b7280", dash="dot", width=1), row=1, col=1)
-
-            fig_l.add_trace(go.Scatter(x=intra.index, y=intra["Bar Range (%)"],
-                                       name="Bar Range (%)", line=dict(color="#7dd3fc", width=1.2)), row=2, col=1)
-            cs_plot = intra["C-S Spread (%)"].replace(0, np.nan)
-            fig_l.add_trace(go.Scatter(x=intra.index, y=cs_plot,
-                                       name="C-S Spread (%)", line=dict(color="#a78bfa", width=1.2)), row=2, col=1)
-
-            amihud_log = intra["Amihud (2dk)"].apply(
-                lambda x: abs(np.log10(x)) if pd.notna(x) and x > 0 else np.nan)
-            fig_l.add_trace(go.Scatter(x=intra.index, y=amihud_log,
-                                       name="log|Amihud (2dk)|", line=dict(color="#f59e0b", width=1.2)), row=3, col=1)
-
-            fig_l.update_layout(
-                paper_bgcolor="#0f1117", plot_bgcolor="#0f1117",
-                font=dict(family="IBM Plex Mono", color="#94a3b8", size=11),
-                legend=dict(orientation="h", y=1.02, bgcolor="rgba(0,0,0,0)"),
-                margin=dict(l=10, r=10, t=50, b=10), height=500,
-                showlegend=True,
-            )
-            for i in range(1, 4):
-                fig_l.update_xaxes(showgrid=False, color="#94a3b8", row=i, col=1)
-                fig_l.update_yaxes(showgrid=True, gridcolor="#1e2235", color="#94a3b8", row=i, col=1)
-
-            st.plotly_chart(fig_l, use_container_width=True, config={"scrollZoom": True, "displayModeBar": True})
             st.markdown("---")
 
             cols_intra = ["Kapanış", "Açılış", "Yüksek", "Düşük", "Hacim",
