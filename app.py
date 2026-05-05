@@ -1313,10 +1313,17 @@ if run or "last_ticker" in st.session_state:
 
         # ── Volatilite trace (sağ eksen, ikinci çizgi) ──────────────────────
         vol_col   = _volatility
-        vol_data  = metrics[vol_col].dropna()
+        # ATR grafikte yüzde olarak gösterilir (ATR/Close*100) — sağ eksenle (Daily Range %) tutarlı
+        if vol_col == "ATR (₺)":
+            vol_series_pct = (metrics["ATR (₺)"] / metrics["Kapanış (₺)"] * 100).dropna()
+            vol_data  = vol_series_pct
+            vol_label = "ATR (%)"
+        else:
+            vol_data  = metrics[vol_col].dropna()
+            vol_label = vol_col
         vol_color = "#f59e0b"  # ATR — turuncu
         fig.add_trace(go.Scatter(x=vol_data.index, y=vol_data.values,
-            name=vol_col, line=dict(color=vol_color, width=1.2, dash="dot")), secondary_y=True)
+            name=vol_label, line=dict(color=vol_color, width=1.2, dash="dot")), secondary_y=True)
 
         fig.update_layout(
             paper_bgcolor="#0f1117", plot_bgcolor="#0f1117",
