@@ -611,6 +611,8 @@ def color_val(val, col):
         return f'<span class="neutral">{val:.2f}</span>'
     if col == "Daily Range (%)":
         return f'<span class="neutral">{val:.2f}%</span>'
+    if col in ["Parkinson (%)", "Garman-Klass (%)"]:
+        return f'<span class="neutral">{val:.2f}%</span>'
     if col == "Hacim":
         return f'<span class="neutral">{int(val):,}</span>'
     return f'<span class="neutral">{val:,.2f}</span>'
@@ -1371,7 +1373,7 @@ if run or "last_ticker" in st.session_state:
         cols_show = [
             "Günlük Değ. (%)", "Güniçi Değ. (%)",
             "Daily Range (₺)", "Daily Range (%)", "Amihud (×10⁶)", "log₁₀(Hacim)",
-            "C-S Spread (%)", "MEC"
+            "C-S Spread (%)", "MEC", "Parkinson (%)", "Garman-Klass (%)"
         ]
 
         st.markdown(
