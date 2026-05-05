@@ -1102,7 +1102,6 @@ if run or "last_ticker" in st.session_state:
             st.error(f"❌ {_ticker} için veri bulunamadı. Ticker'ı kontrol edin.")
             st.stop()
 
-        oldest = fetch_oldest_date(_ticker)
         newest = raw.index.max().strftime("%d.%m.%Y")
         total  = len(raw)
 
@@ -1112,28 +1111,34 @@ if run or "last_ticker" in st.session_state:
         chg = ((last_close - prev_close) / prev_close) * 100
         chg_sign = "+" if chg > 0 else ""
 
+        # Tarih aralığı
+        date_range = f"{raw.index.min().strftime('%m.%Y')} → {raw.index.max().strftime('%m.%Y')}"
+
         col1.metric("Ticker", f"{_ticker}")
         col2.metric("Son Kapanış", f"{last_close:.2f}", f"{chg_sign}{chg:.2f}%")
-        col3.metric("En Eski Veri", oldest)
-        col4.metric("Toplam Gün", f"{total:,}")
 
-        st.markdown("---")
-
+        # Volatilite (ATR) — son değer + 252g persentil etiketi
         metrics = compute_metrics(raw)
         display = metrics.iloc[::-1].head(n_rows)
 
-        up_days    = metrics[metrics["Güniçi Değ. (%)"] > 0]
-        down_days  = metrics[metrics["Güniçi Değ. (%)"] < 0]
-        avg_range_up_tl    = up_days["Daily Range (₺)"].mean()
-        avg_range_down_tl  = down_days["Daily Range (₺)"].mean()
-        avg_range_up_pct   = up_days["Daily Range (%)"].mean()
-        avg_range_down_pct = down_days["Daily Range (%)"].mean()
+        atr_series_d = metrics["ATR"].dropna()
+        atr_today_d  = float(atr_series_d.iloc[-1]) if not atr_series_d.empty else None
+        atr_label_d  = None
+        if atr_today_d is not None and len(atr_series_d) > 1:
+            hist = atr_series_d.iloc[-253:-1] if len(atr_series_d) > 252 else atr_series_d.iloc[:-1]
+            if len(hist) >= 30:
+                p25, p75 = hist.quantile(0.25), hist.quantile(0.75)
+                if   atr_today_d > p75: atr_label_d = "Yüksek"
+                elif atr_today_d < p25: atr_label_d = "Düşük"
+                else:                   atr_label_d = "Normal"
+        if atr_today_d is None:
+            col3.metric("Volatilite (ATR)", "—")
+        else:
+            col3.metric("Volatilite (ATR)", f"{atr_today_d:.2f}",
+                        atr_label_d, delta_color="off")
 
-        sc1, sc2, sc3, sc4 = st.columns(4)
-        sc1.metric("📗 Artış Günü Ort. Range (₺)", f"{avg_range_up_tl:.2f}", f"{avg_range_up_pct:.2f}%")
-        sc2.metric("📗 Artış Günü Sayısı", f"{len(up_days):,}")
-        sc3.metric("📕 Düşüş Günü Ort. Range (₺)", f"{avg_range_down_tl:.2f}", f"{avg_range_down_pct:.2f}%", delta_color="off")
-        sc4.metric("📕 Düşüş Günü Sayısı", f"{len(down_days):,}")
+        col4.metric("Tarih Aralığı", date_range)
+
         st.markdown("---")
 
         def likidite_yorum(metrics: pd.DataFrame) -> None:
