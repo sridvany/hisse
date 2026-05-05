@@ -213,7 +213,7 @@ def compute_intraday_metrics(df: pd.DataFrame, df_60d: pd.DataFrame) -> pd.DataF
         (df["High"] - prev_close).abs(),
         (df["Low"]  - prev_close).abs(),
     ], axis=1).max(axis=1)
-    out["ATR (₺)"] = tr.ewm(alpha=1/30, adjust=False, min_periods=30).mean().round(4)
+    out["ATR"] = tr.ewm(alpha=1/30, adjust=False, min_periods=30).mean().round(4)
 
     if not df_60d.empty:
         df_60d = df_60d.copy()
@@ -292,7 +292,7 @@ def build_daily_payload(metrics: pd.DataFrame, ticker: str) -> dict:
             "MEC":           _col_summary(metrics, "MEC"),
         },
         "volatilite": {
-            "ATR_TL":        _col_summary(metrics, "ATR (₺)"),
+            "ATR_TL":        _col_summary(metrics, "ATR"),
         },
         "yön_asimetrisi_60g": _direction_asymmetry(metrics, lookback=60),
     }
@@ -326,7 +326,7 @@ def build_intraday_payload(intra: pd.DataFrame, ticker: str, sel_date: str,
             "RVOL":          _col_summary(intra, "RVOL"),
         },
         "volatilite": {
-            "ATR_TL":        _col_summary(intra, "ATR (₺)"),
+            "ATR_TL":        _col_summary(intra, "ATR"),
         },
     }
 
@@ -351,14 +351,14 @@ def _direction_asymmetry(metrics: pd.DataFrame, lookback: int = 60) -> dict:
         "up_ortalama": {
             "log_Hacim":       m("log₁₀(Hacim)", up),
             "Daily_Range_%":   m("Daily Range (%)", up),
-            "ATR_TL":          m("ATR (₺)", up),
+            "ATR_TL":          m("ATR", up),
             "Amihud_x10_6":    m("Amihud (×10⁶)", up),
             "C-S_Spread_%":    m("C-S Spread (%)", up),
         },
         "down_ortalama": {
             "log_Hacim":       m("log₁₀(Hacim)", down),
             "Daily_Range_%":   m("Daily Range (%)", down),
-            "ATR_TL":          m("ATR (₺)", down),
+            "ATR_TL":          m("ATR", down),
             "Amihud_x10_6":    m("Amihud (×10⁶)", down),
             "C-S_Spread_%":    m("C-S Spread (%)", down),
         },
@@ -400,7 +400,7 @@ RAPOR FORMATI:
 5 boyutu (Daily Range, Amihud, Hacim, C-S Spread, MEC) 1 yıllık persentile göre oku. Hangileri uç değerde, hangileri normal? Son 30g trendini söyle.
 
 ## 📈 Volatilite Profili
-ATR (₺) seviyesini ve son 30g trendini yorumla. Yükseliyor mu, sakinleşiyor mu? Persentil bazında oku (uç/normal).
+ATR seviyesini ve son 30g trendini yorumla. Yükseliyor mu, sakinleşiyor mu? Persentil bazında oku (uç/normal).
 
 ## 🔗 Yön Asimetrisi
 yön_asimetrisi_60g verisinden up-day vs down-day ortalamalarını karşılaştır. Hacim ve volatilite hangi yönde baskın? Korku rejimi mi, sağlıklı ralli mi, dağıtım mı?
@@ -415,7 +415,7 @@ Likidite × volatilite × fiyat üçgenini 2-3 cümleyle özetle. Rejimi adland�
 5 boyutu (Daily Range, Amihud, Hacim, C-S Spread, MEC) 1 yıllık persentile göre oku. Her birinde son değer normal mi, uç mu? Son 30g trendini söyle. MEC'i yorumlarken 1.0 eşiğine dikkat et (≤1 dayanıklı, >1 yavaş döngü).
 
 ## 📈 Volatilite Profili
-ATR (₺) seviyesini, son 30g trendini ve 1 yıllık persentilini yorumla. Yükseliyor mu, sakinleşiyor mu? Uç değerde mi, normal mi?
+ATR seviyesini, son 30g trendini ve 1 yıllık persentilini yorumla. Yükseliyor mu, sakinleşiyor mu? Uç değerde mi, normal mi?
 
 ## 🔗 İlişki & Sinyal
 En güçlü 2-3 korelasyonu yorumla. Likidite ↔ volatilite ↔ fiyat üçgeninde ne tür bir bağlanma var? Hangi metrik hangisini yönlendiriyor?
@@ -459,7 +459,7 @@ Günün likidite + volatilite imzasını özetle.
 Bar Range, Amihud, C-S Spread, RVOL profilini değerlendir. RVOL > 1.5 baskın mı, yoksa ince işlem mi?
 
 ## 📈 Güniçi Volatilite
-ATR (₺) bar bazında salınım büyüklüğünü gösteriyor mu? Trend nedir?
+ATR bar bazında salınım büyüklüğünü gösteriyor mu? Trend nedir?
 """
     else:
         rules = """## 🎯 Gün Özeti
@@ -469,7 +469,7 @@ Günün likidite + volatilite imzasını özetle, rejim adı ver.
 Bar Range, Amihud, C-S Spread, RVOL profilini değerlendir. RVOL ortalaması, persentili. Hangi metrik uç değerde?
 
 ## 📈 Güniçi Volatilite
-ATR (₺) seviyesini ve seyrini yorumla. Bar başına ortalama hareket aralığı ne durumda?
+ATR seviyesini ve seyrini yorumla. Bar başına ortalama hareket aralığı ne durumda?
 
 ## ⚠️ Anomali
 Trendlerde keskin değişim, uç persentil değerleri.
@@ -573,7 +573,7 @@ def compute_metrics(df: pd.DataFrame) -> pd.DataFrame:
         (df["High"] - prev_close).abs(),
         (df["Low"]  - prev_close).abs(),
     ], axis=1).max(axis=1)
-    out["ATR (₺)"] = tr.ewm(alpha=1/14, adjust=False, min_periods=14).mean().round(2)
+    out["ATR"] = tr.ewm(alpha=1/14, adjust=False, min_periods=14).mean().round(2)
 
     amihud    = out["Amihud (×10⁶)"].copy()
     log_hacim = out["log₁₀(Hacim)"].copy()
@@ -603,7 +603,7 @@ def color_val(val, col):
         return f'<span class="neutral">{log_val:.2f}</span>'
     if col == "Daily Range (₺)":
         return f'<span class="neutral">{val:.2f}</span>'
-    if col == "ATR (₺)":
+    if col == "ATR":
         return f'<span class="neutral">{val:.2f}</span>'
     if col == "Daily Range (%)":
         return f'<span class="neutral">{val:.2f}%</span>'
@@ -671,7 +671,7 @@ with st.sidebar:
     volatility_metric = st.radio(
         "📈 Volatilite Boyutları",
         options=[
-            "ATR (₺) — Wilder (14g / 30bar)",
+            "ATR — Wilder (14g / 30bar)",
         ],
         index=0,
     )
@@ -838,7 +838,7 @@ if run or "last_ticker" in st.session_state:
             k4.metric("Düşük",   f"{low_p:.2f}")
 
             # Volatilite: bugünün son bar ATR'i + 60g historical persentil etiketi
-            atr_series = intra["ATR (₺)"].dropna()
+            atr_series = intra["ATR"].dropna()
             atr_today  = float(atr_series.iloc[-1]) if not atr_series.empty else None
             atr_label  = None
             if atr_today is not None and not df_60d.empty:
@@ -975,7 +975,7 @@ if run or "last_ticker" in st.session_state:
 
             # ── Likidite & Volatilite boyutları (varsayılan kapalı, legend'dan aç/kapa) ──
             # Sağ eksen, açılan göstergeye göre otomatik yeniden ölçeklenir.
-            atr_pct = (intra["ATR (₺)"] / intra["Kapanış"] * 100)
+            atr_pct = (intra["ATR"] / intra["Kapanış"] * 100)
             log_amihud_i = np.log10(intra["Amihud (2dk)"].replace(0, np.nan)).abs()
 
             extra_traces = [
@@ -1011,7 +1011,7 @@ if run or "last_ticker" in st.session_state:
             st.markdown("---")
 
             cols_intra = ["Kapanış", "Açılış", "Yüksek", "Düşük", "Hacim",
-                          "Değişim (%)", "Bar Range (%)", "RVOL", "Amihud (2dk)", "C-S Spread (%)", "ATR (₺)"]
+                          "Değişim (%)", "Bar Range (%)", "RVOL", "Amihud (2dk)", "C-S Spread (%)", "ATR"]
             disp_intra = intra[cols_intra].iloc[::-1]
 
             header_i = "<tr><th>Zaman</th>" + "".join(f"<th>{c}</th>" for c in cols_intra) + "</tr>"
@@ -1328,8 +1328,8 @@ if run or "last_ticker" in st.session_state:
         # ── Volatilite trace (sağ eksen, ikinci çizgi) ──────────────────────
         vol_col   = _volatility
         # ATR grafikte yüzde olarak gösterilir (ATR/Close*100) — sağ eksenle (Daily Range %) tutarlı
-        if vol_col == "ATR (₺)":
-            vol_series_pct = (metrics["ATR (₺)"] / metrics["Kapanış (₺)"] * 100).dropna()
+        if vol_col == "ATR":
+            vol_series_pct = (metrics["ATR"] / metrics["Kapanış (₺)"] * 100).dropna()
             vol_data  = vol_series_pct
             vol_label = "ATR (%)"
         else:
@@ -1381,7 +1381,7 @@ if run or "last_ticker" in st.session_state:
         cols_show = [
             "Günlük Değ. (%)", "Güniçi Değ. (%)",
             "Daily Range (₺)", "Daily Range (%)", "Amihud (×10⁶)", "log₁₀(Hacim)",
-            "C-S Spread (%)", "MEC", "ATR (₺)"
+            "C-S Spread (%)", "MEC", "ATR"
         ]
 
         st.markdown(
@@ -1423,7 +1423,7 @@ if run or "last_ticker" in st.session_state:
             "Hacim (log)":  metrics["log₁₀(Hacim)"],
             "C-S Spread":   metrics["C-S Spread (%)"],
             "MEC":          metrics["MEC"],
-            "ATR":          metrics["ATR (₺)"],
+            "ATR":          metrics["ATR"],
         }).dropna()
 
         cols3 = ["Close", "Daily Range", "Amihud (log)", "Hacim (log)", "C-S Spread", "MEC", "ATR"]
